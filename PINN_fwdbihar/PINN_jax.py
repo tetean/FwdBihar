@@ -81,14 +81,14 @@ def loss_fn(params, interior_points, boundary_points, d):
     vmap_u_net = jit(vmap(u_net))
 
     d2 = time.time()
-    interior_loss = jnp.mean((-vmap_bihar(interior_points)
+    interior_loss = jnp.mean((-vmap_bihar(interior_points).reshape(-1)
                               - f(interior_points, d)
                               ) ** 2)
     jax.block_until_ready(interior_loss)
     d2 = time.time() - d2
     print(f'd2: {d2}')
 
-    boundary_loss = jnp.mean((vmap_u_net(boundary_points)
+    boundary_loss = jnp.mean((vmap_u_net(boundary_points).reshape(-1)
                               - h(boundary_points, d)
                               ) ** 2)
     return interior_loss + boundary_loss
