@@ -119,12 +119,12 @@ def train(layers, num_epochs, learning_rate, interior_points, boundary_points, d
 
 # 参数设置
 layers = [2, 8, 8, 1]  # 输入层和输出层维度
-num_epochs = 10000
+num_epochs = 10
 learning_rate = 0.001
 
 # 生成训练数据
-num_interior = 1000
-num_boundary = 1000
+num_interior = 20
+num_boundary = 20
 test_num_interior = 10000
 test_num_boundary = 10000
 d = layers[0] # 维度参数

@@ -127,8 +127,8 @@ num_epochs = 10
 learning_rate = 0.001
 
 # 生成训练数据
-num_interior = 500
-num_boundary = 500
+num_interior = 1000
+num_boundary = 1000
 test_num_interior = 10000
 test_num_boundary = 10000
 d = layers[0]  # 维度参数
