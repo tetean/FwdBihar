@@ -1,7 +1,7 @@
 '''
-@Author: tetean
-@Time: 2024/10/21 11:07 AM
-@Info:
+@ Author: tetean
+@ Create time: 2024/10/24 10:30
+@ Info:
 '''
 import jax
 import jax.numpy as jnp
@@ -9,6 +9,8 @@ from jax import jit, vmap
 import optax
 from util import TestModel
 import time
+import FwdBiharRecursion
+
 
 @jax.jit
 def MLP(params, x):
@@ -29,21 +31,13 @@ def init_params(layers):
     return params
 
 
-def get_bihar_func(func):
+def get_bihar_func(func, params):
     @jax.jit
-    def condense_B(x):
-        # x的形状是(m, n, n, n, n)
-        # 取出x[:, j, j, k, k]，并将结果存储到y
-        y = x[:, jnp.arange(x.shape[1]), jnp.arange(x.shape[1]), :, :]
-        y = y[:, :, jnp.arange(x.shape[1]), jnp.arange(x.shape[1])]
-        return y
-
     def bihar(data):
-        B = jax.hessian(jax.hessian(func))(data)
-        B = condense_B(B)
-        return jnp.sum(B, axis=(1, 2))
-
+        value = func(params, data)
+        return value
     return bihar
+
 
 def generate_data(num_interior, num_boundary, d):
     """生成训练或测试数据"""
@@ -70,28 +64,38 @@ def h(x, d):
     return (jnp.sum(x, axis=-1) / d) ** 2 + jnp.sin(jnp.sum(x, axis=-1) / d)
 
 @jit
+def simple_layer(x, A, b):
+    return jnp.tanh(A @ x + b)
+
+
+
+@jit
 def loss_fn(params, interior_points, boundary_points, d):
     """损失函数"""
+
+    def bihar_u_net(x):
+        return FwdBiharRecursion.forward_biharmonic(params, x)
+
     def u_net(x):
         return MLP(params, x)
 
-    bihar_u = get_bihar_func(u_net)
-    vmap_bihar = jit(vmap(bihar_u))
+    vmap_bihar = bihar_u_net
+    vmap_bihar = jit(vmap(vmap_bihar))
 
     vmap_u_net = jit(vmap(u_net))
-
-    d2 = time.time()
-    interior_loss = jnp.mean((-vmap_bihar(interior_points).reshape(-1)
+    t2 = time.time()
+    interior_loss = jnp.mean((
+                                -vmap_bihar(interior_points).reshape(-1)
                               - f(interior_points, d)
-                              ) ** 2)
+                             ) ** 2)
     jax.block_until_ready(interior_loss)
-    d2 = time.time() - d2
+    d2 = time.time() - t2
     print(f'd2: {d2}')
-
     boundary_loss = jnp.mean((vmap_u_net(boundary_points).reshape(-1)
                               - h(boundary_points, d)
                               ) ** 2)
     return interior_loss + boundary_loss
+
 
 def train(layers, num_epochs, learning_rate, interior_points, boundary_points, d):
     """训练PINN"""
@@ -101,11 +105,11 @@ def train(layers, num_epochs, learning_rate, interior_points, boundary_points, d
 
     for epoch in range(num_epochs):
         # 计算损失和梯度
-        d1 = time.time()
+        t1 = time.time()
         loss, grads = jax.value_and_grad(lambda p: loss_fn(p, interior_points, boundary_points, d))(params)
 
         jax.block_until_ready(grads)
-        d1 = time.time() - d1
+        d1 = time.time() - t1
         print(f'd1: {d1}')
         # print(f'grads: {grads}')
         # 更新参数
@@ -127,11 +131,12 @@ num_interior = 1000
 num_boundary = 1000
 test_num_interior = 10000
 test_num_boundary = 10000
-d = layers[0] # 维度参数
+d = layers[0]  # 维度参数
 interior_points, boundary_points = generate_data(num_interior, num_boundary, d)
 
 # 开始训练
 start_time = time.time()
+
 trained_params = train(layers, num_epochs, learning_rate, interior_points, boundary_points, d)
 
 jax.block_until_ready(trained_params)
