@@ -1,6 +1,7 @@
 """
 Author: NeterOster (neteroster@gmail.com)
 Date: 2024/10/23
+Info: This version can greatly reduce the size of the computational graph
 """
 
 import jax
@@ -131,7 +132,7 @@ def MLP(params, x):
         b = layer['B']
         x = jnp.tanh(jnp.dot(W, x) + b)
 
-    return jnp.dot(params[-1][0], x) + params[-1][1]
+    return jnp.dot(params[-1]['W'], x) + params[-1]['B']
 
 
 def init_params(layers):
@@ -141,7 +142,7 @@ def init_params(layers):
         lb, ub = -(1 / jnp.sqrt(n_in)), (1 / jnp.sqrt(n_in))
         W = lb + (ub - lb) * jax.random.uniform(key, shape=(n_out, n_in))
         B = jax.random.uniform(key, shape=(n_out,))
-        params.append((W, B))
+        params.append({'W': W, 'B': B})
     return params
 
 
