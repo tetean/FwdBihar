@@ -119,18 +119,18 @@ def boundary_initial_loss(params, boundary_points, initial_points):
     normal_grad_u = jnp.sum(grad_u * normal_vector[:, None, :], axis=-1)
 
     # 边界损失
-    boundary_loss = jnp.mean(jnp.square(normal_grad_u))
+    boundary_loss = jnp.mean(jnp.square(normal_grad_u).reshape(-1))
 
 
     g = get_g_func(lambda x: MLP(params, x))
 
     grad_g = jax.jacobian(g)
     vmap_grad_g = jax.jit(jax.vmap(grad_g))
-    grad_g = vmap_grad_g(boundary_points)[:, :, 2]
+    grad_g = vmap_grad_g(boundary_points)[:, :, :2]
 
     normal_grad_g = jnp.sum(grad_g * normal_vector[:, None, :], axis=-1)
 
-    boundary_loss += jnp.mean(jnp.square(normal_grad_g))
+    boundary_loss += jnp.mean(jnp.square(normal_grad_g).reshape(-1))
 
     # # 定义 u 在 x 和 y 方向的二阶导数
     # hess_u = jax.hessian(MLP, argnums=1)
@@ -159,7 +159,7 @@ def boundary_initial_loss(params, boundary_points, initial_points):
     # 初始损失
     u_init_pred = jax.vmap(MLP, in_axes=(None, 0))(params, initial_points)
     u_init_true = u0(initial_points[:, 0], initial_points[:, 1])
-    initial_loss = jnp.mean(jnp.square(u_init_pred - u_init_true))
+    initial_loss = jnp.mean(jnp.square(u_init_pred - u_init_true).reshape(-1))
 
     return boundary_loss, initial_loss
 
@@ -264,12 +264,20 @@ opt_state = optimizer.init(params)
 # 生成训练点
 internal_points, boundary_points, initial_points = generate_points()
 
+# pre_loss = -1
 # 训练循环
 for epoch in range(10000):
     loss, grads = jax.value_and_grad(loss_fn)(params, internal_points, boundary_points, initial_points)
-
+    # if abs(pre_loss - loss) < 1e-5: break
+    pre_loss = loss
     updates, opt_state = optimizer.update(grads, opt_state)
     params = optax.apply_updates(params, updates)
+    if epoch == 100: dump(params, 'params_100epo.joblib')
+    if epoch == 500: dump(params, 'params_500epo.joblib')
+    if epoch == 2000: dump(params, 'params_2000epo.joblib')
+    if epoch == 3000: dump(params, 'params_3000epo.joblib')
+    if epoch == 5000: dump(params, 'params_5000epo.joblib')
+    if epoch == 8000: dump(params, 'params_8000epo.joblib')
 
     # if epoch % 1000 == 0:
     print(f"Epoch: {epoch}, Loss: {loss}")
@@ -282,22 +290,21 @@ dump(params, 'params.joblib')
 
 
 
-# # 加载参数
-# loaded_params = load('params.joblib')
 
-# 可视化结果
-x_test = jnp.linspace(-1, 1, 100)
-y_test = jnp.linspace(-1, 1, 100)
-t_test = 0.05  # 测试时间点
-X_test, Y_test = jnp.meshgrid(x_test, y_test)
 
-u_pred = MLP(params, jnp.concatenate([X_test.flatten(), Y_test.flatten(), t_test * jnp.ones(X_test.size)], axis=-1))
-
-# 画出结果
-plt.figure(figsize=(8, 6))
-plt.contourf(X_test, Y_test, u_pred.reshape(X_test.shape), levels=50, cmap='viridis')
-plt.colorbar()
-plt.title(f'Solution at t = {t_test}')
-plt.xlabel('x')
-plt.ylabel('y')
-plt.show()
+# # 可视化结果
+# x_test = jnp.linspace(-1, 1, 100)
+# y_test = jnp.linspace(-1, 1, 100)
+# t_test = 0.05  # 测试时间点
+# X_test, Y_test = jnp.meshgrid(x_test, y_test)
+#
+# u_pred = MLP(params, jnp.concatenate([X_test.flatten(), Y_test.flatten(), t_test * jnp.ones(X_test.size)], axis=-1))
+#
+# # 画出结果
+# plt.figure(figsize=(8, 6))
+# plt.contourf(X_test, Y_test, u_pred.reshape(X_test.shape), levels=50, cmap='viridis')
+# plt.colorbar()
+# plt.title(f'Solution at t = {t_test}')
+# plt.xlabel('x')
+# plt.ylabel('y')
+# plt.show()
